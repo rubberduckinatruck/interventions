@@ -1,0 +1,318 @@
+(function(){
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+
+  function escapeHtml(s) {
+    return (s || '').toString()
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;');
+  }
+
+  function ensureToast(){
+    let t = document.getElementById('toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toast';
+      t.className = 'toast';
+      t.setAttribute('role','status');
+      t.setAttribute('aria-live','polite');
+      document.body.appendChild(t);
+    } else {
+      if (t.parentElement !== document.body) document.body.appendChild(t);
+      if (!t.getAttribute('role')) t.setAttribute('role','status');
+      if (!t.getAttribute('aria-live')) t.setAttribute('aria-live','polite');
+    }
+    return t;
+  }
+
+  function showTopToast(msg, ok=true) {
+    const t = ensureToast();
+    t.textContent = msg;
+    t.style.background = ok ? '#065f46' : '#b91c1c';
+    t.classList.remove('show');
+    requestAnimationFrame(() => {
+      void t.offsetWidth;
+      requestAnimationFrame(() => {
+        t.classList.add('show');
+        clearTimeout(showTopToast._timer);
+        showTopToast._timer = setTimeout(() => t.classList.remove('show'), 1800);
+      });
+    });
+  }
+
+  function fillSelect(sel, items, withNone=false) {
+    sel.innerHTML = '';
+    if (withNone) {
+      const o = document.createElement('option');
+      o.value = '';
+      o.textContent = '— Select —';
+      sel.appendChild(o);
+    }
+    (items || []).forEach(v => {
+      const val = String(v).trim();
+      const o = document.createElement('option');
+      o.value = val;
+      o.textContent = val;
+      sel.appendChild(o);
+    });
+  }
+
+  const STATE = {
+    periods: [],
+    studentsByPeriod: {},
+    period: '',
+    behavior: '',
+    page: 'redirects'
+  };
+
+  // Removed unused fetchSetup() in favor of guarded initRedirectsPage()
+
+  function appendBehaviorLogs(entries) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(res => resolve(res))
+        .withFailureHandler(err => reject(err))
+        .appendBehaviorLogs(entries);
+    });
+  }
+
+  function buildQuickButton(btnConfig, clickHandler) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `quick ${escapeHtml(btnConfig.styleClass || '')}`;
+    btn.dataset.buttonId = btnConfig.id;
+    btn.dataset.buttonLabel = btnConfig.label;
+    btn.textContent = btnConfig.label;
+    btn.addEventListener('click', clickHandler);
+    return btn;
+  }
+
+  function currentBehavior() {
+    const sel = $('behaviorSelect');
+    return sel ? (sel.value || '').trim() : '';
+  }
+
+  function formattedPeriod() {
+    return STATE.period ? `Period ${STATE.period}` : '';
+  }
+
+  function onQuickClick(buttonEl, studentNameOrWhole) {
+    if (!STATE.period) { showTopToast('Select period', false); return; }
+    STATE.behavior = currentBehavior();
+    if (!STATE.behavior) { showTopToast('Select a behavior', false); return; }
+    const redirectLabel = buttonEl?.dataset?.buttonLabel || '';
+    if (!redirectLabel) return;
+    const isWhole = (studentNameOrWhole === '__WHOLE__');
+    const entry = { period: formattedPeriod(), student: isWhole ? '' : studentNameOrWhole, behavior: STATE.behavior, redirect: redirectLabel };
+    appendBehaviorLogs([entry])
+      .then(() => showTopToast('Redirect logged', true))
+      .catch(() => showTopToast('Save failed', false));
+  }
+
+  function renderWholeRowButtons() {
+    const row = $('wholeRow');
+    if (!row) return;
+    const actions = row.querySelector('.actions');
+    if (!actions) return;
+    actions.innerHTML = '';
+    (window.QUICK_BUTTON_ORDER || []).forEach(id => {
+      const cfg = (window.QUICK_BUTTONS || []).find(b => b.id === id);
+      if (!cfg) return;
+      const btn = buildQuickButton(cfg, (e) => onQuickClick(e.currentTarget, '__WHOLE__'));
+      actions.appendChild(btn);
+    });
+  }
+
+  function updateWholeRowLabel() {
+    const label = $('periodLabel');
+    if (!label) return;
+    label.textContent = STATE.period ? `Period ${STATE.period}` : '—';
+  }
+
+  function periodKeyVariants(val){
+    const raw = String(val ?? '').trim();
+    const num = raw.replace(/^Period\s*/i,'').trim();
+    return [raw, num, `Period ${num}`];
+  }
+
+  function getStudentsForPeriod(p){
+    const map = STATE.studentsByPeriod || {};
+    const tried = new Set();
+    for (const key of periodKeyVariants(p)) {
+      const k = String(key);
+      if (tried.has(k)) continue;
+      tried.add(k);
+      if (Array.isArray(map[k])) return map[k];
+    }
+    return [];
+  }
+
+  function buildStudentRow(name) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="name">${escapeHtml(name)}</div>
+      <div class="actions"></div>
+      <div class="flash" aria-live="polite"></div>
+    `;
+    const actions = row.querySelector('.actions');
+    (window.QUICK_BUTTON_ORDER || []).forEach(id => {
+      const cfg = (window.QUICK_BUTTONS || []).find(b => b.id === id);
+      if (!cfg) return;
+      const btn = buildQuickButton(cfg, (e) => onQuickClick(e.currentTarget, name));
+      actions.appendChild(btn);
+    });
+    return row;
+  }
+
+  function buildStudentList() {
+    const list = $('studentList');
+    if (!list) return;
+    list.innerHTML = '';
+    const names = getStudentsForPeriod(STATE.period);
+    const count = $('studentCount');
+    if (count) count.textContent = `${names.length} student${names.length===1?'':'s'}`;
+    names.forEach(name => list.appendChild(buildStudentRow(name)));
+  }
+
+  function onPeriodChange() {
+    const sel = $('period');
+    STATE.period = String((sel && sel.value) || '').trim();
+    updateWholeRowLabel();
+    buildStudentList();
+  }
+
+  function onBehaviorChange() {
+    STATE.behavior = currentBehavior();
+  }
+
+  const PAGES = ['pageRedirects','pageInterventions','pageDashboard'];
+
+  function setActiveTab(which){
+    const btnR = $('btnRedirects');
+    const btnI = $('btnInterventions');
+    const btnD = $('btnDashboard');
+    const map = { redirects: btnR, interventions: btnI, dashboard: btnD };
+    [btnR,btnI,btnD].forEach(b=>{
+      if(!b) return;
+      b.classList.remove('active');
+      b.setAttribute('aria-selected','false');
+    });
+    const active = map[which];
+    if (active) {
+      active.classList.add('active');
+      active.setAttribute('aria-selected','true');
+    }
+  }
+
+  function showPage(key){
+    const targetId = key === 'redirects' ? 'pageRedirects' : key === 'interventions' ? 'pageInterventions' : 'pageDashboard';
+    PAGES.forEach(id => {
+      const el = $(id);
+      if (!el) return;
+      if (id === targetId) el.classList.remove('hidden'); else el.classList.add('hidden');
+    });
+    STATE.page = key;
+    setActiveTab(key);
+  }
+
+  function wireNav(){
+    const r = $('btnRedirects');
+    const i = $('btnInterventions');
+    const d = $('btnDashboard');
+    const safeClick = (el, fn) => { if (!el) return; el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fn(); }); };
+    safeClick(r, () => showPage('redirects'));
+    safeClick(i, () => showPage('interventions'));
+    safeClick(d, () => showPage('dashboard'));
+  }
+
+  /**
+   * NEW: Guarded Redirects setup loader with loading-bar and null checks.
+   * - Shows top loading bar while fetching setup
+   * - Throws a friendly error (toast) if payload is null/invalid
+   * - Fills Period and Behavior selects only after verifying payload
+   */
+  function initRedirectsPage(){
+    const loading = document.getElementById('loading-bar');
+    if (loading) loading.style.display = 'block';
+
+    google.script.run
+      .withSuccessHandler(function(data){
+        if (loading) loading.style.display = 'none';
+
+        // Guard against null/undefined payloads
+        if (!data || !data.periods) {
+          throw new Error('No setup data returned');
+        }
+
+        // Fill dropdowns from server-ordered arrays
+        const fill = (sel, items, firstLabel) => {
+          sel.innerHTML = '';
+          if (firstLabel) {
+            const o = document.createElement('option');
+            o.value = '';
+            o.textContent = firstLabel;
+            sel.appendChild(o);
+          }
+          (items || []).forEach(v => {
+            const o = document.createElement('option');
+            o.value = v;
+            o.textContent = v;
+            sel.appendChild(o);
+          });
+        };
+
+        // Persist setup in STATE
+        const { periods, studentsByPeriod, behaviors } = data;
+        STATE.studentsByPeriod = studentsByPeriod || {};
+        let periodOptions = Array.isArray(periods) && periods.length ? periods.slice() : [];
+        if (!periodOptions.length) periodOptions = Object.keys(STATE.studentsByPeriod || {});
+        if (!periodOptions.length && Array.isArray(window.APP_PERIODS)) periodOptions = window.APP_PERIODS.slice();
+        periodOptions = periodOptions.map(v => String(v).trim()).filter(Boolean);
+        STATE.periods = periodOptions;
+
+        // Fill Period select
+        const sel = $('period');
+        if (sel) {
+          fill(sel, STATE.periods, 'Select period');
+          sel.addEventListener('change', onPeriodChange);
+          const first = STATE.periods[0];
+          if (first != null) { sel.value = String(first).trim(); onPeriodChange(); } else { updateWholeRowLabel(); buildStudentList(); }
+        } else {
+          updateWholeRowLabel();
+          buildStudentList();
+        }
+
+        // Fill Behavior select (server-ordered strings)
+        const behSel = $('behaviorSelect');
+        if (behSel) {
+          const safeBehaviors = Array.isArray(behaviors) ? behaviors.map(b => String(b ?? '').trim()).filter(Boolean) : [];
+          fill(behSel, safeBehaviors, 'Select a behavior');
+          behSel.addEventListener('change', onBehaviorChange);
+        }
+
+        // Render quick buttons and sanity message for empty lists
+        renderWholeRowButtons();
+        const initialNames = getStudentsForPeriod(STATE.period);
+        if (!initialNames.length && STATE.period) showTopToast(`No students for "${STATE.period}". Check period labels match sheet keys.`, false);
+      })
+      .withFailureHandler(function(err){
+        if (loading) loading.style.display = 'none';
+        showTopToast((err && err.message) || 'Failed to load setup data', false);
+        console.error('getSetupData() failed:', err);
+      })
+      .getSetupData();
+  }
+
+  function bootstrap() {
+    ensureToast();
+    wireNav();
+    showPage('redirects');
+    // Use the guarded initializer instead of raw fetchSetup()
+    initRedirectsPage();
+  }
+
+  window.addEventListener('load', bootstrap);
+})();
