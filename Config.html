@@ -1,0 +1,48 @@
+window.APP_CONFIG = {
+  APP_NAME: 'Interventions Logger',
+  WHOLE_CLASS_SUFFIX: ' (Whole Class)',
+  PERIOD_LABEL_SUFFIX: 'ᵗʰ Period',
+  ENABLE_MORE_MENU: true
+};
+
+window.APP_PERIODS = ['1','3','4','5','6'];
+
+window.QUICK_BUTTONS = [
+  { id: 'button-1', label: 'Proximity', strategy: 'Proximity', styleClass: 'proximity' },
+  { id: 'button-2', label: 'Nonverbal', strategy: 'Nonverbal cue', styleClass: 'nonverbal' },
+  { id: 'button-3', label: 'Verbal', strategy: 'Verbal redirection', styleClass: 'verbal' },
+  { id: 'button-4', label: 'Praise', strategy: 'Praise / recognition', styleClass: 'praise' }
+];
+
+window.QUICK_BUTTON_ORDER = ['button-1','button-2','button-3','button-4'];
+
+window.INTERVENTION_BUTTONS = [
+  { id: 'int-1', label: 'Explicit Reteach', strategy: 'Explicit reteach of expectations', styleClass: 'reteach' },
+  { id: 'int-2', label: 'Reflection Form', strategy: 'Student reflection / think sheet', styleClass: 'reflection' },
+  { id: 'int-3', label: 'Goal Setting', strategy: 'Student goal-setting conference', styleClass: 'goalset' },
+  { id: 'int-4', label: 'Seat Change', strategy: 'Seat reassignment / consistent seat change', styleClass: 'seatchange' },
+  { id: 'int-5', label: 'Behavior Contract', strategy: 'Simple behavior contract', styleClass: 'contract' },
+  { id: 'int-6', label: 'Progress Note', strategy: 'Progress monitoring note / chart', styleClass: 'progress' }
+];
+
+window.DASHBOARD_THRESHOLDS = { tier1: 3, tier2: 5 };
+
+window.MORE_BUTTON_CLASS = 'more';
+
+window.UI_TEXT = {
+  WHOLE_CLASS_TITLE: 'Whole Class',
+  STUDENTS_TITLE: 'Students',
+  BEHAVIOR_LABEL: 'Behavior',
+  MORE_BUTTON: 'More ▾',
+  TOAST_SAVED_ONE: 'Intervention logged',
+  TOAST_SAVED_MANY: 'Interventions logged',
+  TOAST_SAVE_FAILED: 'Save failed',
+  SELECT_PERIOD_FIRST: 'Select period',
+  SELECT_BEHAVIOR_FIRST: 'Select a behavior',
+  HINT_MODE: 'Pick a behavior, then click a quick action to log.'
+};
+
+window.MENU_SECTIONS = {
+  TIER1: 'Tier 1 – Redirects / Universal Supports',
+  TIER2: 'Tier 2 – Reteach / Targeted Supports'
+};
