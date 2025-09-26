@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Interventions Logger</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+  <!-- Styles -->
+  <style>
+    <?!= include('Styles'); ?>
+  </style>
+</head>
+<body>
+  <div id="loading-bar"></div>
+
+  <div class="wrap">
+    <h1 id="appTitle">Interventions Logger</h1>
+
+    <!-- Top nav (segmented) -->
+    <div class="card" style="margin-bottom:12px;">
+      <div class="toolbar" role="tablist" aria-label="Pages">
+        <div class="seg">
+          <button id="btnRedirects" class="active" type="button" role="tab" aria-selected="true" aria-controls="pageRedirects">Redirects</button>
+          <button id="btnInterventions" type="button" role="tab" aria-selected="false" aria-controls="pageInterventions">Interventions</button>
+          <button id="btnDashboard" type="button" role="tab" aria-selected="false" aria-controls="pageDashboard">Dashboard</button>
+        </div>
+        <span class="hint"> ← Pages</span>
+      </div>
+    </div>
+
+    <!-- PAGES -->
+    <!-- Redirects Page -->
+    <section id="pageRedirects" role="tabpanel" aria-labelledby="btnRedirects">
+      <!-- Top controls (Period + Behavior). No mode toggle per updated plan -->
+      <div class="card">
+        <div class="grid">
+          <div class="col-3">
+            <label for="period">Class Period</label>
+            <select id="period"></select>
+          </div>
+          <div class="col-4">
+            <label for="behaviorSelect">Behavior</label>
+            <select id="behaviorSelect"></select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Whole class row (logs with Student blank; Period formatted as "Period #") -->
+      <div class="topbar">
+        <div class="title">Whole Class</div>
+      </div>
+      <div class="row" id="wholeRow">
+        <div class="name">All students in <span id="periodLabel">—</span></div>
+        <div class="actions"><!-- quick redirect buttons injected by Scripts --></div>
+        <div class="flash" id="wholeFlash" aria-live="polite"></div>
+      </div>
+
+      <!-- Student list (each row gets the same 4 redirect buttons) -->
+      <div class="topbar">
+        <div class="title">Students</div>
+        <div class="hint" id="studentCount">0 students</div>
+      </div>
+      <div class="list" id="studentList"><!-- rows injected by Scripts --></div>
+    </section>
+
+    <!-- Interventions Page -->
+    <section id="pageInterventions" class="hidden" role="tabpanel" aria-labelledby="btnInterventions">
+      <div id="interventionsContainer" class="card">
+        <h2 style="margin:0 0 8px; font-size:18px;">Interventions</h2>
+        <div id="interventionsContent"><!-- populated by Scripts (optional) --></div>
+      </div>
+    </section>
+
+    <!-- Dashboard Page -->
+    <section id="pageDashboard" class="hidden" role="tabpanel" aria-labelledby="btnDashboard">
+      <?!= include('Dashboard'); ?>
+    </section>
+  </div>
+
+  <!-- Config & Scripts (include last so DOM exists before wiring) -->
+  <script>
+    <?!= include('Config'); ?>
+    <?!= include('Scripts'); ?>
+  </script>
+</body>
+</html>
