@@ -1,0 +1,365 @@
+<style>
+.dash-wrap{max-width:1100px;margin:24px auto;padding:0 16px;}
+.kpis{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;margin-top:12px;}
+.kpi{grid-column:span 3;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.kpi .label{font-size:12px;color:var(--muted);margin-bottom:6px;}
+.kpi .value{font-size:22px;font-weight:800;color:var(--ink);}
+.kpi .sub{font-size:12px;color:var(--muted);margin-top:4px;}
+.filters .grid{margin-top:4px;}
+.filters .seg{margin-top:6px;}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.panel+.panel{margin-top:12px;}
+.panel .title{font-weight:800;margin:2px 0 10px;}
+.table{width:100%;border-collapse:collapse;}
+.table th,.table td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;}
+.table th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.02em;}
+.table tr:hover td{background:#f9fafb;}
+.pill{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:12px;font-weight:700;border:1px solid var(--border);background:#fff;}
+.pill.good{color:#065f46;border-color:#a7f3d0;background:#ecfdf5;}
+.pill.warn{color:#92400e;border-color:#fde68a;background:#fffbeb;}
+.legend{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted);}
+.mt-12{margin-top:12px;}
+.muted{color:var(--muted);}
+@media (max-width:920px){.kpi{grid-column:span 6;}}
+@media (max-width:540px){.kpi{grid-column:span 12;}}
+</style>
+
+<!-- Top loading bar (styled in Styles.html) -->
+<div id="loading-bar"></div>
+
+<div class="dash-wrap">
+  <h1>Interventions Dashboard</h1>
+
+  <div class="card filters">
+    <div class="grid">
+      <div class="col-3">
+        <label for="rangeSelect">Range</label>
+        <select id="rangeSelect">
+          <option value="today">Today</option>
+          <option value="7d">Last 7 Days</option>
+          <option value="30d">Last 30 Days</option>
+          <option value="all" selected>All</option>
+        </select>
+      </div>
+      <div class="col-3">
+        <label for="periodFilter">Period</label>
+        <select id="periodFilter">
+          <option value="">All Periods</option>
+        </select>
+      </div>
+      <div class="col-3">
+        <label for="behaviorFilter">Behavior</label>
+        <select id="behaviorFilter">
+          <option value="">All Behaviors</option>
+        </select>
+      </div>
+      <div class="col-3">
+        <label>&nbsp;</label>
+        <div class="seg" role="tablist" aria-label="View">
+          <button id="viewRedirects" class="active" role="tab" aria-selected="true">Redirects</button>
+          <button id="viewInterventions" role="tab" aria-selected="false">Interventions</button>
+        </div>
+      </div>
+    </div>
+    <div class="legend mt-12" id="legendNote"></div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="label" id="kpiMainLabel">Total Redirects</div>
+      <div class="value" id="kpiRedirects">0</div>
+      <div class="sub" id="kpiRedirectsSub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Unique Students</div>
+      <div class="value" id="kpiStudents">0</div>
+      <div class="sub" id="kpiStudentsSub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Top Behavior</div>
+      <div class="value" id="kpiTopBehavior">—</div>
+      <div class="sub" id="kpiTopBehaviorSub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="label" id="kpiSecondaryLabel">Top Redirect Button</div>
+      <div class="value" id="kpiTopRedirect">—</div>
+      <div class="sub" id="kpiTopRedirectSub">—</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="title" id="titleByBehavior">Redirects by Behavior</div>
+    <table class="table" id="tblByBehavior">
+      <thead>
+        <tr>
+          <th>Behavior</th>
+          <th>Count</th>
+          <th>%</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="title" id="titleByAction">Redirects by Redirect Button</div>
+    <table class="table" id="tblByRedirect">
+      <thead>
+        <tr>
+          <th id="thActionHeader">Redirect Button</th>
+          <th>Count</th>
+          <th>%</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="title">Students with Highest Redirects</div>
+    <table class="table" id="tblTopStudents">
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Behavior</th>
+          <th>Count</th>
+          <th>Suggested Intervention</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  const $ = (id)=>document.getElementById(id);
+
+  function ensureToast(){
+    let t=document.getElementById('toast');
+    if(!t){
+      t=document.createElement('div');
+      t.id='toast';
+      t.className='toast';
+      t.setAttribute('role','status');
+      t.setAttribute('aria-live','polite');
+      document.body.appendChild(t);
+    }
+    return t;
+  }
+  function showTopToast(msg,ok=true){
+    const t=ensureToast();
+    t.textContent=msg;
+    t.style.background=ok?'#065f46':'#b91c1c';
+    t.classList.remove('show');
+    requestAnimationFrame(()=>{ void t.offsetWidth; requestAnimationFrame(()=>{ t.classList.add('show'); clearTimeout(showTopToast._t); showTopToast._t=setTimeout(()=>t.classList.remove('show'),1800); });});
+  }
+
+  function getDashboardData(range,period,behavior,view){
+    return new Promise((resolve,reject)=>{
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject)
+        .getDashboardData({range,period,behavior,view});
+    });
+  }
+
+  function fillSelect(sel,items,withAllLabel){
+    sel.innerHTML='';
+    if(withAllLabel){
+      const o=document.createElement('option');
+      o.value=''; o.textContent=withAllLabel; sel.appendChild(o);
+    }
+    (items||[]).forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); });
+  }
+
+  function countBy(arr,key){
+    const m=new Map();
+    (arr||[]).forEach(r=>{ const k=(r[key]||'').toString(); m.set(k,(m.get(k)||0)+1); });
+    return m;
+  }
+  function percent(n,total){ if(!total) return '0%'; return Math.round((n/total)*100)+'%'; }
+  function topKey(map){ let k='—',v=0; for(const [kk,vv] of map.entries()){ if(vv>v){v=vv;k=kk;} } return[k,v]; }
+  function groupByStudentBehavior(logs){
+    const out=new Map();
+    (logs||[]).forEach(r=>{
+      const stu=(r.student||'— Whole Class —');
+      const beh=(r.behavior||'—');
+      if(!out.has(stu)) out.set(stu,new Map());
+      const m=out.get(stu); m.set(beh,(m.get(beh)||0)+1);
+    });
+    return out;
+  }
+  function suggest(count){
+    const t1=(window.DASHBOARD_THRESHOLDS&&window.DASHBOARD_THRESHOLDS.tier1)||3;
+    const t2=(window.DASHBOARD_THRESHOLDS&&window.DASHBOARD_THRESHOLDS.tier2)||5;
+    if(count>=t2) return {text:'Tier 2 Suggested',cls:'warn'};
+    if(count>=t1) return {text:'Tier 1 Suggested',cls:'good'};
+    return {text:'—',cls:''};
+  }
+
+  function setViewLabels(){
+    const isR=STATE.view==='redirects';
+    $('kpiMainLabel').textContent=isR?'Total Redirects':'Total Interventions';
+    $('kpiSecondaryLabel').textContent=isR?'Top Redirect Button':'Top Intervention';
+    $('titleByBehavior').textContent=isR?'Redirects by Behavior':'Interventions by Behavior';
+    $('titleByAction').textContent=isR?'Redirects by Redirect Button':'Interventions by Intervention Button';
+    $('thActionHeader').textContent=isR?'Redirect Button':'Intervention Button';
+  }
+
+  function renderKpis(logs){
+    const isR=STATE.view==='redirects';
+    const keyBtn=isR?'redirect':'intervention';
+    const total=logs.length;
+    $('kpiRedirects').textContent=total;
+    $('kpiRedirectsSub').textContent=total?'Logged '+(isR?'redirects':'interventions'):'No data';
+    const students=new Set(); logs.forEach(r=>{ if(r.student) students.add(r.student); });
+    $('kpiStudents').textContent=students.size;
+    $('kpiStudentsSub').textContent=students.size?'With at least one entry':'—';
+    const byBehavior=countBy(logs,'behavior');
+    const [tb,tbv]=topKey(byBehavior);
+    $('kpiTopBehavior').textContent=tb||'—';
+    $('kpiTopBehaviorSub').textContent=tbv?`${tbv} ${isR?'redirects':'interventions'}`:'—';
+    const byAction=countBy(logs,keyBtn);
+    const [ta,tav]=topKey(byAction);
+    $('kpiTopRedirect').textContent=ta||'—';
+    $('kpiTopRedirectSub').textContent=tav?`${tav} uses`:'—';
+  }
+
+  function renderTableByBehavior(logs){
+    const tbody=$('tblByBehavior').querySelector('tbody');
+    tbody.innerHTML='';
+    const total=logs.length;
+    const map=countBy(logs,'behavior');
+    const rows=Array.from(map.entries()).sort((a,b)=>b[1]-a[1]);
+    rows.forEach(([behavior,cnt])=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${behavior||'—'}</td><td>${cnt}</td><td>${percent(cnt,total)}</td>`;
+      tbody.appendChild(tr);
+    });
+    if(!rows.length){ const tr=document.createElement('tr'); tr.innerHTML=`<td colspan="3" class="muted">No data in range.</td>`; tbody.appendChild(tr); }
+  }
+
+  function renderTableByAction(logs){
+    const isR=STATE.view==='redirects';
+    const keyBtn=isR?'redirect':'intervention';
+    const tbody=$('tblByRedirect').querySelector('tbody');
+    tbody.innerHTML='';
+    const total=logs.length;
+    const map=countBy(logs,keyBtn);
+    const rows=Array.from(map.entries()).sort((a,b)=>b[1]-a[1]);
+    rows.forEach(([val,cnt])=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${val||'—'}</td><td>${cnt}</td><td>${percent(cnt,total)}</td>`;
+      tbody.appendChild(tr);
+    });
+    if(!rows.length){ const tr=document.createElement('tr'); tr.innerHTML=`<td colspan="3" class="muted">No data in range.</td>`; tbody.appendChild(tr); }
+  }
+
+  function renderTopStudents(logs){
+    const tbody=$('tblTopStudents').querySelector('tbody');
+    tbody.innerHTML='';
+    const sb=groupByStudentBehavior(logs);
+    const rows=[];
+    for(const [student,behMap] of sb.entries()){
+      for(const [behavior,cnt] of behMap.entries()){
+        const sug=suggest(cnt);
+        rows.push({student,behavior,cnt,suggestion:sug.text,cls:sug.cls});
+      }
+    }
+    rows.sort((a,b)=>b.cnt-a.cnt);
+    rows.forEach(r=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${r.student}</td><td>${r.behavior}</td><td>${r.cnt}</td><td><span class="pill ${r.cls}">${r.suggestion}</span></td>`;
+      tbody.appendChild(tr);
+    });
+    if(!rows.length){ const tr=document.createElement('tr'); tr.innerHTML=`<td colspan="4" class="muted">No student-level entries in range.</td>`; tbody.appendChild(tr); }
+  }
+
+  const STATE={range:'all',period:'',behavior:'',view:'redirects',cache:null};
+
+  function applyFiltersToLogs(data){
+    const isR=STATE.view==='redirects';
+    const logs=isR?(data.behaviorLogs||[]):(data.interventionLogs||[]);
+    return logs.filter(r=>{
+      debugger;
+      if(STATE.period){
+        const num=(r.period||'').replace('Period','').trim();
+        if(num!==STATE.period) return false;
+      }
+      if(STATE.behavior){
+        if((r.behavior||'')!==STATE.behavior) return false;
+      }
+      return true;
+    });
+  }
+
+  function refresh(){
+    if(!STATE.cache) return;
+    setViewLabels();
+    const filtered=applyFiltersToLogs(STATE.cache);
+    renderKpis(filtered);
+    renderTableByBehavior(filtered);
+    renderTableByAction(filtered);
+    renderTopStudents(filtered);
+  }
+
+  // Restored, guarded loader
+  function dashboardLoad(){
+    const bar=document.getElementById('loading-bar');
+    if(bar) bar.style.display='block';
+
+    // Optional legend thresholds
+    const t1=(window.DASHBOARD_THRESHOLDS&&window.DASHBOARD_THRESHOLDS.tier1)||3;
+    const t2=(window.DASHBOARD_THRESHOLDS&&window.DASHBOARD_THRESHOLDS.tier2)||5;
+    const legend=$('legendNote');
+    if(legend) legend.innerHTML=`<span>Suggestions: ≥${t1} = Tier 1, ≥${t2} = Tier 2</span>`;
+
+    getDashboardData(STATE.range,STATE.period,STATE.behavior,STATE.view)
+      .then(data=>{
+        debugger; // <-- pause here and inspect "data"
+        if(bar) bar.style.display='none';
+
+        // Guard against null/undefined payloads
+        if(!data || typeof data!=='object'){
+          showTopToast('No dashboard data returned',false);
+          return;
+        }
+
+        STATE.cache=data||{};
+        debugger;
+
+        const periods=(Array.isArray(data.periods)&&data.periods.length)?data.periods:(window.APP_PERIODS||[]);
+        fillSelect($('periodFilter'),periods.filter(Boolean),'All Periods');
+
+        const behaviors=(Array.isArray(data.behaviors)&&data.behaviors.length)?data.behaviors:[];
+        fillSelect($('behaviorFilter'),behaviors.filter(Boolean),'All Behaviors');
+
+        refresh();
+      })
+      .catch(err=>{
+        if(bar) bar.style.display='none';
+        showTopToast((err&&err.message)||'Failed to load dashboard data.',false);
+      });
+  }
+
+  function wire(){
+    const rangeSelect=$('rangeSelect');
+    if(rangeSelect){ rangeSelect.addEventListener('change',()=>{ STATE.range=rangeSelect.value||'all'; dashboardLoad(); }); }
+    const periodFilter=$('periodFilter');
+    if(periodFilter){ periodFilter.addEventListener('change',()=>{ STATE.period=periodFilter.value||''; refresh(); }); }
+    const behaviorFilter=$('behaviorFilter');
+    if(behaviorFilter){ behaviorFilter.addEventListener('change',()=>{ STATE.behavior=behaviorFilter.value||''; refresh(); }); }
+    const viewRedirects=$('viewRedirects');
+    const viewInterventions=$('viewInterventions');
+    if(viewRedirects&&viewInterventions){
+      viewRedirects.addEventListener('click',()=>{ STATE.view='redirects'; viewRedirects.classList.add('active'); viewRedirects.setAttribute('aria-selected','true'); viewInterventions.classList.remove('active'); viewInterventions.setAttribute('aria-selected','false'); dashboardLoad(); });
+      viewInterventions.addEventListener('click',()=>{ STATE.view='interventions'; viewInterventions.classList.add('active'); viewInterventions.setAttribute('aria-selected','true'); viewRedirects.classList.remove('active'); viewRedirects.setAttribute('aria-selected','false'); dashboardLoad(); });
+    }
+  }
+
+  window.addEventListener('load',()=>{ wire(); dashboardLoad(); });
+})();
+</script>
